@@ -154,6 +154,11 @@
     let editingIndex = -1;
     let editingDay = '';
 
+    // 格式化价格，去掉末尾的0
+    function formatPrice(num) {
+      return parseFloat(num.toFixed(4));
+    }
+
     // 初始化
     function init() {
       loadData();
@@ -214,7 +219,7 @@
           <div class="bg-gray-50 rounded-lg p-3">
             <div class="flex justify-between items-center mb-2">
               <span class="font-semibold">${month}月${day}日</span>
-              <span class="text-sm text-gray-500">¥${dayTotal.toFixed(2)}</span>
+              <span class="text-sm text-gray-500">¥${formatPrice(dayTotal)}</span>
             </div>
             <div class="space-y-1" id="day-${day}">
         `;
@@ -229,10 +234,10 @@
                 <div>
                   <span class="font-medium">${record.product}</span>
                   <span class="text-gray-500 ml-2">${record.quantity}个</span>
-                  <span class="text-gray-400 ml-2">@¥${price.toFixed(2)}</span>
+                  <span class="text-gray-400 ml-2">@¥${formatPrice(price)}</span>
                 </div>
                 <div class="flex gap-1">
-                  <span class="text-blue-600">¥${(record.quantity * price).toFixed(2)}</span>
+                  <span class="text-blue-600">¥${formatPrice(record.quantity * price)}</span>
                   <button class="edit-btn text-gray-400 hover:text-blue-500" data-day="${day}" data-idx="${idx}">✏️</button>
                 </div>
               </div>
@@ -278,7 +283,7 @@
           <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
             <span>${product}</span>
             <div class="flex items-center gap-2">
-              <span class="text-blue-600">¥${products[product].toFixed(2)}</span>
+              <span class="text-blue-600">¥${formatPrice(products[product])}</span>
               <button class="edit-price-btn text-blue-400 hover:text-blue-600" data-product="${encodedProduct}">✏️</button>
               <button class="delete-product-btn text-red-400 hover:text-red-600" data-product="${encodedProduct}">🗑️</button>
             </div>
@@ -353,12 +358,6 @@
         });
       });
       
-      if (Object.keys(products).length === 0) {
-        document.getElementById('monthlyStats').innerHTML = '<div class="text-gray-400 text-center py-4">请先添加产品单价</div>';
-        document.getElementById('totalSalary').textContent = '¥ 0.00';
-        return;
-      }
-      
       let html = '';
       Object.keys(productTotals).forEach(product => {
         const quantity = productTotals[product];
@@ -371,7 +370,7 @@
               <span>${product}</span>
               <span class="text-gray-500 text-sm ml-2">${quantity}个</span>
             </div>
-            <span class="text-blue-600">¥${amount.toFixed(2)}</span>
+            <span class="text-blue-600">¥${formatPrice(amount)}</span>
           </div>
         `;
       });
@@ -381,7 +380,7 @@
       }
       
       document.getElementById('monthlyStats').innerHTML = html;
-      document.getElementById('totalSalary').textContent = `¥${totalSalary.toFixed(2)}`;
+      document.getElementById('totalSalary').textContent = `¥${formatPrice(totalSalary)}`;
     }
 
     // 打开添加弹窗
