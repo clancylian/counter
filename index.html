@@ -353,6 +353,12 @@
         });
       });
       
+      if (Object.keys(products).length === 0) {
+        document.getElementById('monthlyStats').innerHTML = '<div class="text-gray-400 text-center py-4">请先添加产品单价</div>';
+        document.getElementById('totalSalary').textContent = '¥ 0.00';
+        return;
+      }
+      
       let html = '';
       Object.keys(productTotals).forEach(product => {
         const quantity = productTotals[product];
