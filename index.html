@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>计件工资统计</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+    .scrollbar-hide::-webkit-scrollbar {
+      display: none;
+    }
+    .scrollbar-hide {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div class="max-w-lg mx-auto bg-white min-h-screen shadow-lg">
+    <!-- 顶部导航 -->
+    <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 shadow-md">
+      <h1 class="text-xl font-bold text-center">计件工资统计</h1>
+      <div class="flex justify-between items-center mt-2">
+        <button id="prevMonth" class="text-sm px-3 py-1 bg-white/20 rounded hover:bg-white/30">上一月</button>
+        <span id="currentMonth" class="text-lg font-semibold"></span>
+        <button id="nextMonth" class="text-sm px-3 py-1 bg-white/20 rounded hover:bg-white/30">下一月</button>
+      </div>
+    </div>
+
+    <!-- 快捷输入区 -->
+    <div class="p-4 border-b">
+      <div class="flex gap-2">
+        <textarea id="quickInput" rows="3" placeholder="输入格式: 20号 型号5000个（支持换行/逗号/分号分隔多条）" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 resize-none"></textarea>
+        <button id="quickAdd" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">识别添加</button>
+      </div>
+      <div class="text-xs text-gray-500 mt-1">支持多行输入，每行格式: "20号 型号5000个"</div>
+    </div>
+
+    <!-- 日期列表 -->
+    <div class="p-4">
+      <div class="flex flex-wrap gap-2 mb-4">
+        <button id="todayBtn" class="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm">今天</button>
+        <button id="clearDayBtn" class="px-3 py-1 bg-red-100 text-red-700 rounded text-sm">清空当天</button>
+      </div>
+      
+      <div class="space-y-3 max-h-80 overflow-y-auto scrollbar-hide">
+        <div id="dailyList"></div>
+      </div>
+    </div>
+
+    <!-- 产品单价设置 -->
+    <div class="p-4 border-t">
+      <h3 class="font-semibold mb-3">产品单价设置</h3>
+      <div class="space-y-2 max-h-40 overflow-y-auto scrollbar-hide" id="priceList"></div>
+      <div class="flex gap-2 mt-3">
+        <input type="text" id="newProduct" placeholder="产品型号" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+        <input type="number" id="newPrice" placeholder="单价" class="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+        <button id="addProduct" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">添加</button>
+      </div>
+    </div>
+
+    <!-- 月度统计 -->
+    <div class="p-4 border-t bg-gray-50">
+      <h3 class="font-semibold mb-3">本月统计</h3>
+      <div id="monthlyStats" class="space-y-2"></div>
+      <div class="mt-4 pt-3 border-t">
+        <div class="flex justify-between text-lg">
+          <span>本月工资总计:</span>
+          <span class="font-bold text-blue-600" id="totalSalary">¥ 0.00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 添加记录弹窗 -->
+    <div id="addModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 hidden">
+      <div class="bg-white rounded-xl w-full max-w-sm p-4">
+        <h3 class="font-semibold mb-4">添加记录</h3>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-sm text-gray-600 mb-1">日期</label>
+            <input type="date" id="modalDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+          </div>
+          <div>
+            <label class="block text-sm text-gray-600 mb-1">产品型号</label>
+            <select id="modalProduct" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+              <option value="">选择产品</option>
+            </select>
+            <input type="text" id="modalProductOther" placeholder="其他型号" class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg hidden">
+          </div>
+          <div>
+            <label class="block text-sm text-gray-600 mb-1">数量</label>
+            <input type="number" id="modalQuantity" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+          </div>
+        </div>
+        <div class="flex gap-2 mt-4">
+          <button id="modalCancel" class="flex-1 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">取消</button>
+          <button id="modalConfirm" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 编辑记录弹窗 -->
+    <div id="editModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 hidden">
+      <div class="bg-white rounded-xl w-full max-w-sm p-4">
+        <h3 class="font-semibold mb-4">编辑记录</h3>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-sm text-gray-600 mb-1">产品型号</label>
+            <input type="text" id="editProduct" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+          </div>
+          <div>
+            <label class="block text-sm text-gray-600 mb-1">数量</label>
+            <input type="number" id="editQuantity" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+          </div>
+        </div>
+        <div class="flex gap-2 mt-4">
+          <button id="editDelete" class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">删除</button>
+          <button id="editCancel" class="flex-1 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">取消</button>
+          <button id="editConfirm" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 修改单价弹窗 -->
+    <div id="editPriceModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 hidden">
+      <div class="bg-white rounded-xl w-full max-w-sm p-4">
+        <h3 class="font-semibold mb-4">修改单价</h3>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-sm text-gray-600 mb-1">产品型号</label>
+            <input type="text" id="editPriceProduct" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100" readonly>
+          </div>
+          <div>
+            <label class="block text-sm text-gray-600 mb-1">单价（元）</label>
+            <input type="number" id="editPriceValue" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+          </div>
+        </div>
+        <div class="flex gap-2 mt-4">
+          <button id="editPriceCancel" class="flex-1 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">取消</button>
+          <button id="editPriceConfirm" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 全局变量
+    let currentDate = new Date();
+    let records = {}; // { "2024-01": { "01": [{product, quantity}], "02": [...] } }
+    let products = {}; // { "型号": 单价 }
+    let editingIndex = -1;
+    let editingDay = '';
+
+    // 初始化
+    function init() {
+      loadData();
+      renderCurrentMonth();
+      renderDailyList();
+      renderPriceList();
+      renderMonthlyStats();
+    }
+
+    // 加载数据
+    function loadData() {
+      const savedRecords = localStorage.getItem('piecework_records');
+      const savedProducts = localStorage.getItem('piecework_products');
+      if (savedRecords) records = JSON.parse(savedRecords);
+      if (savedProducts) products = JSON.parse(savedProducts);
+      // 默认产品
+      if (Object.keys(products).length === 0) {
+        products = {
+          '400x120背网修两边': 0.05,
+          '300x100背板': 0.08,
+          '500x150边框': 0.10,
+          '200x80支架': 0.03
+        };
+        saveProducts();
+      }
+    }
+
+    // 保存数据
+    function saveRecords() {
+      localStorage.setItem('piecework_records', JSON.stringify(records));
+    }
+
+    function saveProducts() {
+      localStorage.setItem('piecework_products', JSON.stringify(products));
+    }
+
+    // 渲染当前月份
+    function renderCurrentMonth() {
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      document.getElementById('currentMonth').textContent = `${year}年${month}月`;
+    }
+
+    // 获取当月天数
+    function getDaysInMonth() {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      return new Date(year, month + 1, 0).getDate();
+    }
+
+    // 渲染每日列表
+    function renderDailyList() {
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const days = getDaysInMonth();
+      const monthKey = `${year}-${month}`;
+      const monthRecords = records[monthKey] || {};
+      
+      let html = '';
+      for (let i = 1; i <= days; i++) {
+        const day = String(i).padStart(2, '0');
+        const dayRecords = monthRecords[day] || [];
+        const dayTotal = dayRecords.reduce((sum, r) => sum + r.quantity * (products[r.product] || 0), 0);
+        
+        html += `
+          <div class="bg-gray-50 rounded-lg p-3">
+            <div class="flex justify-between items-center mb-2">
+              <span class="font-semibold">${month}月${day}日</span>
+              <span class="text-sm text-gray-500">¥${dayTotal.toFixed(2)}</span>
+            </div>
+            <div class="space-y-1" id="day-${day}">
+        `;
+        
+        if (dayRecords.length === 0) {
+          html += `<div class="text-gray-400 text-sm">暂无记录</div>`;
+        } else {
+          dayRecords.forEach((record, idx) => {
+            const price = products[record.product] || 0;
+            html += `
+              <div class="flex justify-between items-center p-2 bg-white rounded text-sm" data-idx="${idx}">
+                <div>
+                  <span class="font-medium">${record.product}</span>
+                  <span class="text-gray-500 ml-2">${record.quantity}个</span>
+                  <span class="text-gray-400 ml-2">@¥${price.toFixed(2)}</span>
+                </div>
+                <div class="flex gap-1">
+                  <span class="text-blue-600">¥${(record.quantity * price).toFixed(2)}</span>
+                  <button class="edit-btn text-gray-400 hover:text-blue-500" data-day="${day}" data-idx="${idx}">✏️</button>
+                </div>
+              </div>
+            `;
+          });
+        }
+        
+        html += `
+            </div>
+            <button class="add-day-btn w-full mt-2 py-2 text-blue-600 text-sm border border-blue-200 rounded hover:bg-blue-50" data-day="${day}">+ 添加记录</button>
+          </div>
+        `;
+      }
+      
+      document.getElementById('dailyList').innerHTML = html;
+      bindDayEvents();
+    }
+
+    // 绑定每日列表事件
+    function bindDayEvents() {
+      document.querySelectorAll('.add-day-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const day = this.dataset.day;
+          openAddModal(day);
+        });
+      });
+      
+      document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const day = this.dataset.day;
+          const idx = parseInt(this.dataset.idx);
+          openEditModal(day, idx);
+        });
+      });
+    }
+
+    // 渲染价格列表
+    function renderPriceList() {
+      let html = '';
+      Object.keys(products).forEach(product => {
+        const encodedProduct = encodeURIComponent(product);
+        html += `
+          <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+            <span>${product}</span>
+            <div class="flex items-center gap-2">
+              <span class="text-blue-600">¥${products[product].toFixed(2)}</span>
+              <button class="edit-price-btn text-blue-400 hover:text-blue-600" data-product="${encodedProduct}">✏️</button>
+              <button class="delete-product-btn text-red-400 hover:text-red-600" data-product="${encodedProduct}">🗑️</button>
+            </div>
+          </div>
+        `;
+      });
+      document.getElementById('priceList').innerHTML = html;
+      bindProductEvents();
+    }
+
+    // 绑定产品事件
+    function bindProductEvents() {
+      document.querySelectorAll('.delete-product-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const product = decodeURIComponent(this.dataset.product);
+          if (confirm(`确定删除产品 "${product}" 吗？`)) {
+            delete products[product];
+            saveProducts();
+            renderPriceList();
+            renderDailyList();
+            renderMonthlyStats();
+          }
+        });
+      });
+
+      let editingPriceProduct = '';
+
+      document.querySelectorAll('.edit-price-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          editingPriceProduct = decodeURIComponent(this.dataset.product);
+          document.getElementById('editPriceProduct').value = editingPriceProduct;
+          document.getElementById('editPriceValue').value = products[editingPriceProduct];
+          document.getElementById('editPriceModal').classList.remove('hidden');
+        });
+      });
+
+      document.getElementById('editPriceConfirm').addEventListener('click', () => {
+        const newPrice = parseFloat(document.getElementById('editPriceValue').value);
+        if (!isNaN(newPrice)) {
+          products[editingPriceProduct] = newPrice;
+          saveProducts();
+          renderPriceList();
+          renderDailyList();
+          renderMonthlyStats();
+          document.getElementById('editPriceModal').classList.add('hidden');
+        } else {
+          alert('请输入有效的单价');
+        }
+      });
+
+      document.getElementById('editPriceCancel').addEventListener('click', () => {
+        document.getElementById('editPriceModal').classList.add('hidden');
+      });
+    }
+
+    // 渲染月度统计
+    function renderMonthlyStats() {
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const monthKey = `${year}-${month}`;
+      const monthRecords = records[monthKey] || {};
+      
+      const productTotals = {};
+      let totalSalary = 0;
+      
+      Object.keys(monthRecords).forEach(day => {
+        monthRecords[day].forEach(record => {
+          if (!productTotals[record.product]) {
+            productTotals[record.product] = 0;
+          }
+          productTotals[record.product] += record.quantity;
+        });
+      });
+      
+      let html = '';
+      Object.keys(productTotals).forEach(product => {
+        const quantity = productTotals[product];
+        const price = products[product] || 0;
+        const amount = quantity * price;
+        totalSalary += amount;
+        html += `
+          <div class="flex justify-between items-center py-1">
+            <div>
+              <span>${product}</span>
+              <span class="text-gray-500 text-sm ml-2">${quantity}个</span>
+            </div>
+            <span class="text-blue-600">¥${amount.toFixed(2)}</span>
+          </div>
+        `;
+      });
+      
+      if (Object.keys(productTotals).length === 0) {
+        html = '<div class="text-gray-400 text-center py-4">本月暂无记录</div>';
+      }
+      
+      document.getElementById('monthlyStats').innerHTML = html;
+      document.getElementById('totalSalary').textContent = `¥${totalSalary.toFixed(2)}`;
+    }
+
+    // 打开添加弹窗
+    function openAddModal(day) {
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      document.getElementById('modalDate').value = `${year}-${month}-${day}`;
+      document.getElementById('modalQuantity').value = '';
+      document.getElementById('modalProductOther').value = '';
+      document.getElementById('modalProductOther').classList.add('hidden');
+      populateProductSelect();
+      document.getElementById('addModal').classList.remove('hidden');
+    }
+
+    // 打开编辑弹窗
+    function openEditModal(day, idx) {
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const monthKey = `${year}-${month}`;
+      const record = records[monthKey]?.[day]?.[idx];
+      
+      if (record) {
+        editingDay = day;
+        editingIndex = idx;
+        document.getElementById('editProduct').value = record.product;
+        document.getElementById('editQuantity').value = record.quantity;
+        document.getElementById('editModal').classList.remove('hidden');
+      }
+    }
+
+    // 填充产品选择
+    function populateProductSelect() {
+      const select = document.getElementById('modalProduct');
+      select.innerHTML = '<option value="">选择产品</option>';
+      Object.keys(products).forEach(product => {
+        const option = document.createElement('option');
+        option.value = product;
+        option.textContent = product;
+        select.appendChild(option);
+      });
+      const otherOption = document.createElement('option');
+      otherOption.value = '__other__';
+      otherOption.textContent = '其他型号';
+      select.appendChild(otherOption);
+    }
+
+    // 添加记录
+    function addRecord(date, product, quantity) {
+      const [year, month, day] = date.split('-');
+      const monthKey = `${year}-${month}`;
+      
+      if (!records[monthKey]) records[monthKey] = {};
+      if (!records[monthKey][day]) records[monthKey][day] = [];
+      
+      records[monthKey][day].push({ product, quantity });
+      saveRecords();
+    }
+
+    // 更新记录
+    function updateRecord(day, idx, product, quantity) {
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const monthKey = `${year}-${month}`;
+      
+      if (records[monthKey]?.[day]) {
+        records[monthKey][day][idx] = { product, quantity };
+        saveRecords();
+      }
+    }
+
+    // 删除记录
+    function deleteRecord(day, idx) {
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const monthKey = `${year}-${month}`;
+      
+      if (records[monthKey]?.[day]) {
+        records[monthKey][day].splice(idx, 1);
+        saveRecords();
+      }
+    }
+
+    // 清空某天记录
+    function clearDayRecords(day) {
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const monthKey = `${year}-${month}`;
+      
+      if (records[monthKey]) {
+        records[monthKey][day] = [];
+        saveRecords();
+      }
+    }
+
+    // 文本识别
+    function parseQuickInput(text) {
+      const patterns = [
+        /(\d{1,2})-(\d{1,2})[号日]?\s*(.+?)\s*(\d+)\s*[个片只件张]/i,
+        /(\d{1,2})[号日]?\s*(.+?)\s*(\d+)\s*[个片只件张]/i,
+        /(\d{1,2})\s+(.+?)\s*(\d+)\s*[个片只件张]/i
+      ];
+      
+      for (const pattern of patterns) {
+        const match = text.match(pattern);
+        if (match) {
+          if (match.length === 4) {
+            return {
+              day: String(parseInt(match[1])).padStart(2, '0'),
+              product: match[2].trim(),
+              quantity: parseInt(match[3])
+            };
+          } else if (match.length === 5) {
+            return {
+              day: String(parseInt(match[2])).padStart(2, '0'),
+              product: match[3].trim(),
+              quantity: parseInt(match[4])
+            };
+          }
+        }
+      }
+      return null;
+    }
+
+    // 事件监听
+    document.getElementById('prevMonth').addEventListener('click', () => {
+      currentDate.setMonth(currentDate.getMonth() - 1);
+      renderCurrentMonth();
+      renderDailyList();
+      renderMonthlyStats();
+    });
+
+    document.getElementById('nextMonth').addEventListener('click', () => {
+      currentDate.setMonth(currentDate.getMonth() + 1);
+      renderCurrentMonth();
+      renderDailyList();
+      renderMonthlyStats();
+    });
+
+    document.getElementById('todayBtn').addEventListener('click', () => {
+      currentDate = new Date();
+      renderCurrentMonth();
+      renderDailyList();
+      renderMonthlyStats();
+    });
+
+    document.getElementById('clearDayBtn').addEventListener('click', () => {
+      const day = String(currentDate.getDate()).padStart(2, '0');
+      if (confirm('确定清空今天的所有记录吗？')) {
+        clearDayRecords(day);
+        renderDailyList();
+        renderMonthlyStats();
+      }
+    });
+
+    document.getElementById('quickAdd').addEventListener('click', () => {
+      const input = document.getElementById('quickInput').value.trim();
+      if (!input) return;
+      
+      const parts = input.split(/[\n\r,，；;、]+/).filter(p => p.trim());
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      let addedCount = 0;
+      
+      parts.forEach(part => {
+        const cleaned = part.trim().replace(/^[‑\-—]+/, '');
+        const result = parseQuickInput(cleaned);
+        if (result) {
+          addRecord(`${year}-${month}-${result.day}`, result.product, result.quantity);
+          addedCount++;
+        }
+      });
+      
+      if (addedCount > 0) {
+        renderDailyList();
+        renderMonthlyStats();
+        document.getElementById('quickInput').value = '';
+        alert(`添加成功！共添加 ${addedCount} 条记录`);
+      } else {
+        alert('识别失败，请手动添加');
+        openAddModal(String(currentDate.getDate()).padStart(2, '0'));
+      }
+    });
+
+    document.getElementById('addProduct').addEventListener('click', () => {
+      const product = document.getElementById('newProduct').value.trim();
+      const price = parseFloat(document.getElementById('newPrice').value);
+      
+      if (product && !isNaN(price)) {
+        products[product] = price;
+        saveProducts();
+        renderPriceList();
+        renderDailyList();
+        renderMonthlyStats();
+        document.getElementById('newProduct').value = '';
+        document.getElementById('newPrice').value = '';
+      } else {
+        alert('请输入正确的产品型号和单价');
+      }
+    });
+
+    document.getElementById('modalProduct').addEventListener('change', () => {
+      const select = document.getElementById('modalProduct');
+      const otherInput = document.getElementById('modalProductOther');
+      if (select.value === '__other__') {
+        otherInput.classList.remove('hidden');
+      } else {
+        otherInput.classList.add('hidden');
+      }
+    });
+
+    document.getElementById('modalConfirm').addEventListener('click', () => {
+      const date = document.getElementById('modalDate').value;
+      const selectProduct = document.getElementById('modalProduct').value;
+      const otherProduct = document.getElementById('modalProductOther').value.trim();
+      const quantity = parseInt(document.getElementById('modalQuantity').value);
+      
+      const product = selectProduct === '__other__' ? otherProduct : selectProduct;
+      
+      if (date && product && !isNaN(quantity) && quantity > 0) {
+        addRecord(date, product, quantity);
+        document.getElementById('addModal').classList.add('hidden');
+        renderDailyList();
+        renderMonthlyStats();
+      } else {
+        alert('请填写完整信息');
+      }
+    });
+
+    document.getElementById('modalCancel').addEventListener('click', () => {
+      document.getElementById('addModal').classList.add('hidden');
+    });
+
+    document.getElementById('editConfirm').addEventListener('click', () => {
+      const product = document.getElementById('editProduct').value.trim();
+      const quantity = parseInt(document.getElementById('editQuantity').value);
+      
+      if (product && !isNaN(quantity) && quantity > 0) {
+        updateRecord(editingDay, editingIndex, product, quantity);
+        document.getElementById('editModal').classList.add('hidden');
+        renderDailyList();
+        renderMonthlyStats();
+      } else {
+        alert('请填写完整信息');
+      }
+    });
+
+    document.getElementById('editDelete').addEventListener('click', () => {
+      if (confirm('确定删除这条记录吗？')) {
+        deleteRecord(editingDay, editingIndex);
+        document.getElementById('editModal').classList.add('hidden');
+        renderDailyList();
+        renderMonthlyStats();
+      }
+    });
+
+    document.getElementById('editCancel').addEventListener('click', () => {
+      document.getElementById('editModal').classList.add('hidden');
+    });
+
+    // 键盘事件
+    document.getElementById('quickInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.ctrlKey) {
+        document.getElementById('quickAdd').click();
+      }
+    });
+
+    // 初始化
+    init();
+  </script>
+</body>
+</html>
