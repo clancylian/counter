@@ -170,15 +170,6 @@
       if (savedRecords) records = JSON.parse(savedRecords);
       if (savedProducts) {
         products = JSON.parse(savedProducts);
-      } else {
-        // 第一次访问，初始化默认产品
-        products = {
-          '400x120背网修两边': 0.05,
-          '300x100背板': 0.08,
-          '500x150边框': 0.10,
-          '200x80支架': 0.03
-        };
-        saveProducts();
       }
     }
 
