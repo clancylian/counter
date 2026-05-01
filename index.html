@@ -168,9 +168,10 @@
       const savedRecords = localStorage.getItem('piecework_records');
       const savedProducts = localStorage.getItem('piecework_products');
       if (savedRecords) records = JSON.parse(savedRecords);
-      if (savedProducts) products = JSON.parse(savedProducts);
-      // 默认产品
-      if (Object.keys(products).length === 0) {
+      if (savedProducts) {
+        products = JSON.parse(savedProducts);
+      } else {
+        // 第一次访问，初始化默认产品
         products = {
           '400x120背网修两边': 0.05,
           '300x100背板': 0.08,
