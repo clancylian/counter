@@ -198,13 +198,22 @@
       }
     }
 
-    // 从云端加载数据
+    // 从云端加载数据（带超时）
     async function loadFromCloud() {
       if (!JSONBIN_CONFIG.apiKey || !JSONBIN_CONFIG.binId) return false;
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('timeout')), 5000)
+      );
+      
       try {
-        const response = await fetch(`${JSONBIN_CONFIG.baseUrl}/${JSONBIN_CONFIG.binId}/latest`, {
-          headers: { 'X-Master-Key': JSONBIN_CONFIG.apiKey }
-        });
+        const response = await Promise.race([
+          fetch(`${JSONBIN_CONFIG.baseUrl}/${JSONBIN_CONFIG.binId}/latest`, {
+            headers: { 'X-Master-Key': JSONBIN_CONFIG.apiKey }
+          }),
+          timeoutPromise
+        ]);
+        
         if (response.ok) {
           const data = await response.json();
           if (data.record) {
@@ -217,7 +226,7 @@
           }
         }
       } catch (e) {
-        console.log('从云端加载失败:', e);
+        console.log('从云端加载失败:', e.message);
       }
       return false;
     }
@@ -236,12 +245,17 @@
       bindCloudEvents();
     }
 
-    // 加载云端配置
+    // 加载云端配置（硬编码的配置优先级更高）
     function loadCloudConfig() {
-      const savedApiKey = localStorage.getItem('jsonbin_apikey');
-      const savedBinId = localStorage.getItem('jsonbin_binid');
-      if (savedApiKey) JSONBIN_CONFIG.apiKey = savedApiKey;
-      if (savedBinId) JSONBIN_CONFIG.binId = savedBinId;
+      // 如果代码中已经配置了，就使用代码中的配置
+      if (!JSONBIN_CONFIG.apiKey) {
+        const savedApiKey = localStorage.getItem('jsonbin_apikey');
+        if (savedApiKey) JSONBIN_CONFIG.apiKey = savedApiKey;
+      }
+      if (!JSONBIN_CONFIG.binId) {
+        const savedBinId = localStorage.getItem('jsonbin_binid');
+        if (savedBinId) JSONBIN_CONFIG.binId = savedBinId;
+      }
       document.getElementById('cloudApiKey').value = JSONBIN_CONFIG.apiKey || '';
       document.getElementById('cloudBinId').value = JSONBIN_CONFIG.binId || '';
       updateCloudStatus();
