@@ -65,7 +65,12 @@
     <!-- 云端同步设置 -->
     <div class="p-4 border-t">
       <h3 class="font-semibold mb-3">云端同步</h3>
-      <div id="cloudStatus" class="text-sm text-green-600 mb-2">已启用云端自动同步</div>
+      <div id="cloudStatus" class="text-sm text-green-600 mb-1">已启用云端自动同步</div>
+      <div class="text-xs text-gray-500 mb-3">
+        <div>上次同步: <span id="lastSyncTime">-</span></div>
+        <div>上次加载: <span id="lastLoadTime">-</span></div>
+      </div>
+      <div id="syncMessage" class="text-sm text-red-600 mb-2 hidden"></div>
       <div class="flex gap-2">
         <button id="syncNow" class="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm">立即同步</button>
         <button id="loadFromCloudBtn" class="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">从云端加载</button>
@@ -191,6 +196,29 @@
       }
     }
 
+    // 格式化时间
+    function formatTime(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      const h = String(date.getHours()).padStart(2, '0');
+      const min = String(date.getMinutes()).padStart(2, '0');
+      const s = String(date.getSeconds()).padStart(2, '0');
+      return `${y}-${m}-${d} ${h}:${min}:${s}`;
+    }
+
+    // 显示同步消息
+    function showSyncMessage(msg, isError = false) {
+      const el = document.getElementById('syncMessage');
+      el.textContent = msg;
+      el.className = isError ? 'text-sm text-red-600 mb-2' : 'text-sm text-green-600 mb-2';
+      if (isError) {
+        el.classList.remove('hidden');
+      } else {
+        setTimeout(() => el.classList.add('hidden'), 3000);
+      }
+    }
+
     // 同步数据到云端（带重试）
     async function syncToCloud() {
       if (!JSONBIN_CONFIG.apiKey || !JSONBIN_CONFIG.binId) return;
@@ -203,8 +231,11 @@
           },
           body: JSON.stringify({ records, products })
         }, 3, 1500);
+        document.getElementById('lastSyncTime').textContent = formatTime(new Date());
+        showSyncMessage('同步成功！');
       } catch (e) {
         console.log('同步到云端失败:', e);
+        showSyncMessage('同步失败，请检查网络', true);
       }
     }
 
@@ -230,6 +261,7 @@
             localStorage.setItem('piecework_records', JSON.stringify(records));
             localStorage.setItem('piecework_products', JSON.stringify(products));
             console.log('云端数据加载成功:', Object.keys(records).length + ' 个月的数据');
+            document.getElementById('lastLoadTime').textContent = formatTime(new Date());
             return true;
           } else {
             console.log('云端数据为空');
@@ -241,9 +273,14 @@
       }
       
       try {
-        return await Promise.race([fetchPromise(), timeoutPromise]);
+        const result = await Promise.race([fetchPromise(), timeoutPromise]);
+        if (!result) {
+          showSyncMessage('云端暂无数据', true);
+        }
+        return result;
       } catch (e) {
         console.log('从云端加载失败:', e.message);
+        showSyncMessage('加载失败，请检查网络', true);
         return false;
       }
     }
@@ -278,7 +315,6 @@
     function bindCloudEvents() {
       document.getElementById('syncNow').addEventListener('click', async () => {
         await syncToCloud();
-        alert('已同步到云端！');
       });
 
       document.getElementById('loadFromCloudBtn').addEventListener('click', async () => {
