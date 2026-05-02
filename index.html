@@ -643,6 +643,7 @@
     function parseQuickInput(text) {
       const patterns = [
         /(\d{1,2})-(\d{1,2})[号日]?\s*(.+?)\s*(\d+)\s*[个片只件张]/i,
+        /(\d{1,2})月(\d{1,2})[号日]?\s*(.+?)\s*(\d+)\s*[个片只件张]/i,
         /(\d{1,2})[号日]?\s*(.+?)\s*(\d+)\s*[个片只件张]/i,
         /(\d{1,2})\s+(.+?)\s*(\d+)\s*[个片只件张]/i
       ];
@@ -650,17 +651,17 @@
       for (const pattern of patterns) {
         const match = text.match(pattern);
         if (match) {
-          if (match.length === 4) {
-            return {
-              day: String(parseInt(match[1])).padStart(2, '0'),
-              product: match[2].trim(),
-              quantity: parseInt(match[3])
-            };
-          } else if (match.length === 5) {
+          if (match.length === 5) {
             return {
               day: String(parseInt(match[2])).padStart(2, '0'),
               product: match[3].trim(),
               quantity: parseInt(match[4])
+            };
+          } else if (match.length === 4) {
+            return {
+              day: String(parseInt(match[1])).padStart(2, '0'),
+              product: match[2].trim(),
+              quantity: parseInt(match[3])
             };
           }
         }
