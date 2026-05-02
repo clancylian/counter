@@ -708,13 +708,25 @@
       const year = currentDate.getFullYear();
       const month = String(currentDate.getMonth() + 1).padStart(2, '0');
       let addedCount = 0;
+      let lastDay = String(currentDate.getDate()).padStart(2, '0');
       
       parts.forEach(part => {
         const cleaned = part.trim().replace(/^[‑\-—]+/, '');
         const result = parseQuickInput(cleaned);
         if (result) {
+          lastDay = result.day;
           addRecord(`${year}-${month}-${result.day}`, result.product, result.quantity);
           addedCount++;
+        } else {
+          const qtyMatch = cleaned.match(/(\d+)\s*[个片只件张]/);
+          if (qtyMatch) {
+            const qty = parseInt(qtyMatch[1]);
+            const product = cleaned.replace(/(\d+)\s*[个片只件张]/, '').trim();
+            if (product) {
+              addRecord(`${year}-${month}-${lastDay}`, product, qty);
+              addedCount++;
+            }
+          }
         }
       });
       
