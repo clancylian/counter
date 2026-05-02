@@ -65,15 +65,10 @@
     <!-- 云端同步设置 -->
     <div class="p-4 border-t">
       <h3 class="font-semibold mb-3">云端同步</h3>
-      <div id="cloudStatus" class="text-sm text-gray-500 mb-2"></div>
-      <div class="flex gap-2 mb-2">
-        <input type="text" id="cloudApiKey" placeholder="API Key" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-sm">
-        <input type="text" id="cloudBinId" placeholder="Bin ID" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-sm">
-      </div>
+      <div id="cloudStatus" class="text-sm text-green-600 mb-2">已启用云端自动同步</div>
       <div class="flex gap-2">
-        <button id="saveCloudConfig" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">保存配置</button>
-        <button id="syncNow" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm">立即同步</button>
-        <button id="loadFromCloudBtn" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">从云端加载</button>
+        <button id="syncNow" class="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm">立即同步</button>
+        <button id="loadFromCloudBtn" class="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">从云端加载</button>
       </div>
     </div>
 
@@ -269,7 +264,6 @@
 
     // 加载云端配置（硬编码的配置优先级更高）
     function loadCloudConfig() {
-      // 如果代码中已经配置了，就使用代码中的配置
       if (!JSONBIN_CONFIG.apiKey) {
         const savedApiKey = localStorage.getItem('jsonbin_apikey');
         if (savedApiKey) JSONBIN_CONFIG.apiKey = savedApiKey;
@@ -278,55 +272,16 @@
         const savedBinId = localStorage.getItem('jsonbin_binid');
         if (savedBinId) JSONBIN_CONFIG.binId = savedBinId;
       }
-      document.getElementById('cloudApiKey').value = JSONBIN_CONFIG.apiKey || '';
-      document.getElementById('cloudBinId').value = JSONBIN_CONFIG.binId || '';
-      updateCloudStatus();
-    }
-
-    // 更新云端状态显示
-    function updateCloudStatus() {
-      const statusEl = document.getElementById('cloudStatus');
-      if (JSONBIN_CONFIG.apiKey && JSONBIN_CONFIG.binId) {
-        statusEl.textContent = '已配置云端同步';
-        statusEl.className = 'text-sm text-green-600 mb-2';
-      } else {
-        statusEl.textContent = '未配置云端同步';
-        statusEl.className = 'text-sm text-gray-500 mb-2';
-      }
     }
 
     // 绑定云端事件
     function bindCloudEvents() {
-      document.getElementById('saveCloudConfig').addEventListener('click', () => {
-        const apiKey = document.getElementById('cloudApiKey').value.trim();
-        const binId = document.getElementById('cloudBinId').value.trim();
-        if (apiKey && binId) {
-          JSONBIN_CONFIG.apiKey = apiKey;
-          JSONBIN_CONFIG.binId = binId;
-          localStorage.setItem('jsonbin_apikey', apiKey);
-          localStorage.setItem('jsonbin_binid', binId);
-          updateCloudStatus();
-          syncToCloud();
-          alert('配置已保存并同步到云端！');
-        } else {
-          alert('请输入完整的 API Key 和 Bin ID');
-        }
-      });
-
       document.getElementById('syncNow').addEventListener('click', async () => {
-        if (!JSONBIN_CONFIG.apiKey || !JSONBIN_CONFIG.binId) {
-          alert('请先配置云端同步');
-          return;
-        }
         await syncToCloud();
         alert('已同步到云端！');
       });
 
       document.getElementById('loadFromCloudBtn').addEventListener('click', async () => {
-        if (!JSONBIN_CONFIG.apiKey || !JSONBIN_CONFIG.binId) {
-          alert('请先配置云端同步');
-          return;
-        }
         const success = await loadFromCloud();
         if (success) {
           renderDailyList();
