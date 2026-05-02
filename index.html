@@ -56,8 +56,10 @@
       <h3 class="font-semibold mb-3">产品单价设置</h3>
       <div class="space-y-2 max-h-40 overflow-y-auto scrollbar-hide" id="priceList"></div>
       <div class="flex gap-2 mt-3">
-        <input type="text" id="newProduct" placeholder="产品型号" list="productSuggestions" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
-        <datalist id="productSuggestions"></datalist>
+        <div class="flex-1 relative">
+          <input type="text" id="newProduct" placeholder="产品型号" autocomplete="off" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+          <div id="productDropdown" class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg hidden max-h-48 overflow-y-auto"></div>
+        </div>
         <input type="number" id="newPrice" placeholder="单价" class="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
         <button id="addProduct" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">添加</button>
       </div>
@@ -457,34 +459,70 @@
       });
       document.getElementById('priceList').innerHTML = html;
       bindProductEvents();
-      updateProductSuggestions();
+      updateProductDropdown();
     }
     
-    function updateProductSuggestions() {
-      const suggestions = new Set();
+    function updateProductDropdown() {
+      const suggestions = [];
       const currentYear = currentDate.getFullYear();
       const currentMonth = String(currentDate.getMonth() + 1).padStart(2, '0');
       const monthKey = `${currentYear}-${currentMonth}`;
+      const seen = new Set();
       
       if (records[monthKey]) {
         Object.values(records[monthKey]).forEach(dayRecords => {
           dayRecords.forEach(record => {
-            suggestions.add(record.product);
+            if (!seen.has(record.product)) {
+              seen.add(record.product);
+              suggestions.push(record.product);
+            }
           });
         });
       }
       
       Object.keys(products).forEach(product => {
-        suggestions.add(product);
+        if (!seen.has(product)) {
+          seen.add(product);
+          suggestions.push(product);
+        }
       });
       
-      const datalist = document.getElementById('productSuggestions');
-      datalist.innerHTML = '';
-      suggestions.forEach(product => {
-        const option = document.createElement('option');
-        option.value = product;
-        datalist.appendChild(option);
+      const dropdown = document.getElementById('productDropdown');
+      dropdown.innerHTML = '';
+      
+      if (suggestions.length > 0) {
+        suggestions.forEach(product => {
+          const item = document.createElement('div');
+          item.className = 'px-3 py-2 cursor-pointer hover:bg-blue-50';
+          item.textContent = product;
+          item.addEventListener('click', () => {
+            document.getElementById('newProduct').value = product;
+            dropdown.classList.add('hidden');
+          });
+          dropdown.appendChild(item);
+        });
+      }
+    }
+    
+    function showProductDropdown() {
+      updateProductDropdown();
+      const dropdown = document.getElementById('productDropdown');
+      const input = document.getElementById('newProduct');
+      const filter = input.value.toLowerCase();
+      
+      const items = dropdown.querySelectorAll('div');
+      items.forEach(item => {
+        const text = item.textContent.toLowerCase();
+        item.style.display = text.includes(filter) ? 'block' : 'none';
       });
+      
+      dropdown.classList.remove('hidden');
+    }
+    
+    function hideProductDropdown() {
+      setTimeout(() => {
+        document.getElementById('productDropdown').classList.add('hidden');
+      }, 200);
     }
 
     // 绑定产品事件
@@ -791,6 +829,18 @@
         alert('识别失败，请手动添加');
         openAddModal(String(currentDate.getDate()).padStart(2, '0'));
       }
+    });
+
+    document.getElementById('newProduct').addEventListener('focus', () => {
+      showProductDropdown();
+    });
+
+    document.getElementById('newProduct').addEventListener('input', () => {
+      showProductDropdown();
+    });
+
+    document.getElementById('newProduct').addEventListener('blur', () => {
+      hideProductDropdown();
     });
 
     document.getElementById('addProduct').addEventListener('click', () => {
