@@ -801,9 +801,7 @@
       const input = document.getElementById('quickInput').value.trim();
       if (!input) return;
       
-      let processed = input;
-      processed = processed.replace(/(\d+)[个片只件张]\s*[\n\r]\s*/g, '$1个，');
-      const parts = processed.split(/[,，；;、]+/).filter(p => p.trim());
+      const parts = input.split(/[\n\r,，；;、]+/).filter(p => p.trim());
       const year = currentDate.getFullYear();
       const month = String(currentDate.getMonth() + 1).padStart(2, '0');
       const preview = [];
@@ -816,15 +814,26 @@
         let product = '';
         let quantity = 0;
         
-        if (result) {
-          day = result.day;
-          product = result.product;
-          quantity = result.quantity;
+        if (result && result.quantity > 0 && result.product && result.product.length >= 2) {
+          const dayNum = parseInt(result.day);
+          if (dayNum >= 1 && dayNum <= 31) {
+            day = result.day;
+            product = result.product;
+            quantity = result.quantity;
+          } else {
+            day = lastDay;
+            const qtyMatch = cleaned.match(/(\d+)\s*[个片只件张]/);
+            if (qtyMatch) {
+              quantity = parseInt(qtyMatch[1]);
+              product = cleaned.replace(qtyMatch[0], '').trim();
+            }
+          }
         } else {
+          day = lastDay;
           const qtyMatch = cleaned.match(/(\d+)\s*[个片只件张]/);
           if (qtyMatch) {
             quantity = parseInt(qtyMatch[1]);
-            product = cleaned.replace(qtyMatch[0], '').trim().replace(/[\n\r]/g, '');
+            product = cleaned.replace(qtyMatch[0], '').trim();
           }
         }
         
