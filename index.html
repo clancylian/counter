@@ -182,38 +182,49 @@
       return parseFloat(num.toFixed(4));
     }
 
-    // 同步数据到云端
+    // 带重试的 fetch
+    async function fetchWithRetry(url, options, retries = 3, delay = 1500) {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const response = await fetch(url, options);
+          return response;
+        } catch (e) {
+          if (i === retries - 1) throw e;
+          console.log(`请求失败，${delay}ms 后重试... (${i + 1}/${retries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    // 同步数据到云端（带重试）
     async function syncToCloud() {
       if (!JSONBIN_CONFIG.apiKey || !JSONBIN_CONFIG.binId) return;
       try {
-        await fetch(`${JSONBIN_CONFIG.baseUrl}/${JSONBIN_CONFIG.binId}`, {
+        await fetchWithRetry(`${JSONBIN_CONFIG.baseUrl}/${JSONBIN_CONFIG.binId}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             'X-Master-Key': JSONBIN_CONFIG.apiKey
           },
           body: JSON.stringify({ records, products })
-        });
+        }, 3, 1500);
       } catch (e) {
         console.log('同步到云端失败:', e);
       }
     }
 
-    // 从云端加载数据（带超时）
+    // 从云端加载数据（带超时和重试）
     async function loadFromCloud() {
       if (!JSONBIN_CONFIG.apiKey || !JSONBIN_CONFIG.binId) return false;
       
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('timeout')), 5000)
+        setTimeout(() => reject(new Error('timeout')), 8000)
       );
       
-      try {
-        const response = await Promise.race([
-          fetch(`${JSONBIN_CONFIG.baseUrl}/${JSONBIN_CONFIG.binId}/latest`, {
-            headers: { 'X-Master-Key': JSONBIN_CONFIG.apiKey }
-          }),
-          timeoutPromise
-        ]);
+      const fetchPromise = async () => {
+        const response = await fetch(`${JSONBIN_CONFIG.baseUrl}/${JSONBIN_CONFIG.binId}/latest`, {
+          headers: { 'X-Master-Key': JSONBIN_CONFIG.apiKey }
+        });
         
         if (response.ok) {
           const data = await response.json();
@@ -231,10 +242,15 @@
         } else {
           console.log('云端请求失败:', response.status);
         }
+        return false;
+      }
+      
+      try {
+        return await Promise.race([fetchPromise(), timeoutPromise]);
       } catch (e) {
         console.log('从云端加载失败:', e.message);
+        return false;
       }
-      return false;
     }
 
     // 初始化
