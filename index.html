@@ -303,6 +303,7 @@
       renderPriceList();
       renderMonthlyStats();
       bindCloudEvents();
+      bindProductEvents();
     }
 
     // 加载云端配置（硬编码的配置优先级更高）
@@ -481,7 +482,6 @@
         `;
       });
       document.getElementById('priceList').innerHTML = html;
-      bindProductEvents();
       updateProductDropdown();
     }
     
@@ -550,9 +550,11 @@
 
     // 绑定产品事件
     function bindProductEvents() {
-      document.querySelectorAll('.delete-product-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-          const product = decodeURIComponent(this.dataset.product);
+      document.getElementById('priceList').addEventListener('click', function(e) {
+        const target = e.target;
+        
+        if (target.classList.contains('delete-product-btn')) {
+          const product = decodeURIComponent(target.dataset.product);
           if (confirm(`确定删除产品 "${product}" 吗？`)) {
             delete products[product];
             saveProducts();
@@ -560,38 +562,37 @@
             renderDailyList();
             renderMonthlyStats();
           }
-        });
-      });
-
-      let editingPriceProduct = '';
-
-      document.querySelectorAll('.edit-price-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-          editingPriceProduct = decodeURIComponent(this.dataset.product);
-          document.getElementById('editPriceProduct').value = editingPriceProduct;
-          document.getElementById('editPriceValue').value = products[editingPriceProduct];
+        } else if (target.classList.contains('edit-price-btn')) {
+          const editingProduct = decodeURIComponent(target.dataset.product);
+          document.getElementById('editPriceProduct').value = editingProduct;
+          document.getElementById('editPriceValue').value = products[editingProduct];
+          document.getElementById('editPriceModal').dataset.product = editingProduct;
           document.getElementById('editPriceModal').classList.remove('hidden');
-        });
-      });
-
-      document.getElementById('editPriceConfirm').addEventListener('click', () => {
-        const newPrice = parseFloat(document.getElementById('editPriceValue').value);
-        if (!isNaN(newPrice)) {
-          products[editingPriceProduct] = newPrice;
-          saveProducts();
-          renderPriceList();
-          renderDailyList();
-          renderMonthlyStats();
-          document.getElementById('editPriceModal').classList.add('hidden');
-        } else {
-          alert('请输入有效的单价');
         }
       });
-
-      document.getElementById('editPriceCancel').addEventListener('click', () => {
-        document.getElementById('editPriceModal').classList.add('hidden');
-      });
     }
+    
+    // 编辑价格确认事件（只绑定一次）
+    document.getElementById('editPriceConfirm').addEventListener('click', () => {
+      const editingProduct = document.getElementById('editPriceModal').dataset.product;
+      const newPrice = parseFloat(document.getElementById('editPriceValue').value);
+      if (!isNaN(newPrice) && editingProduct) {
+        products[editingProduct] = newPrice;
+        saveProducts();
+        renderPriceList();
+        renderDailyList();
+        renderMonthlyStats();
+        document.getElementById('editPriceModal').classList.add('hidden');
+        document.getElementById('editPriceModal').dataset.product = '';
+      } else {
+        alert('请输入有效的单价');
+      }
+    });
+    
+    document.getElementById('editPriceCancel').addEventListener('click', () => {
+      document.getElementById('editPriceModal').classList.add('hidden');
+      document.getElementById('editPriceModal').dataset.product = '';
+    });
 
     // 渲染月度统计
     function renderMonthlyStats() {
