@@ -36,6 +36,7 @@
         <textarea id="quickInput" rows="3" placeholder="输入格式: 20号 型号5000个（支持换行/逗号/分号分隔多条）" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 resize-none"></textarea>
         <button id="quickAdd" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">识别添加</button>
       </div>
+      <div id="quickPreview" class="mt-2 p-2 bg-gray-50 rounded text-sm hidden"></div>
       <div class="text-xs text-gray-500 mt-1">支持多行输入，每行格式: "20号 型号5000个"</div>
     </div>
 
@@ -801,17 +802,14 @@
       if (!input) return;
       
       const parts = input.split(/[\n\r,，；;、]+/).filter(p => p.trim());
-      console.log('Split parts:', parts);
       const year = currentDate.getFullYear();
       const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-      let addedCount = 0;
+      const preview = [];
       let lastDay = String(currentDate.getDate()).padStart(2, '0');
       
-      parts.forEach((part, index) => {
+      parts.forEach((part) => {
         const cleaned = part.trim().replace(/^[‑\-—]+/, '');
-        console.log(`Part ${index}: "${cleaned}"`);
         const result = parseQuickInput(cleaned);
-        console.log(`  Result:`, result);
         let day = lastDay;
         let product = '';
         let quantity = 0;
@@ -831,23 +829,53 @@
         if (product && quantity > 0) {
           const dayNum = parseInt(day);
           if (dayNum >= 1 && dayNum <= 31) {
-            addRecord(`${year}-${month}-${day}`, product, quantity);
+            preview.push({ day: `${year}-${month}-${day}`, product, quantity });
             lastDay = day;
-            addedCount++;
           }
         }
       });
       
-      if (addedCount > 0) {
+      showQuickPreview(preview);
+    });
+    
+    function showQuickPreview(preview) {
+      const previewEl = document.getElementById('quickPreview');
+      if (preview.length === 0) {
+        previewEl.classList.add('hidden');
+        return;
+      }
+      
+      let html = '<div class="font-medium mb-2">预览（共' + preview.length + '条）：</div>';
+      preview.forEach((item, i) => {
+        html += '<div class="flex justify-between py-1 border-b border-gray-200 last:border-0">';
+        html += '<span class="text-gray-600">' + item.day + '</span>';
+        html += '<span class="text-blue-600 truncate mx-2">' + item.product + '</span>';
+        html += '<span class="text-green-600">' + item.quantity + '个</span>';
+        html += '</div>';
+      });
+      html += '<div class="flex gap-2 mt-3">';
+      html += '<button id="quickConfirm" class="flex-1 px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700">确认添加</button>';
+      html += '<button id="quickCancel" class="flex-1 px-3 py-1 bg-gray-300 text-gray-700 rounded text-sm hover:bg-gray-400">取消</button>';
+      html += '</div>';
+      
+      previewEl.innerHTML = html;
+      previewEl.classList.remove('hidden');
+      
+      document.getElementById('quickConfirm').addEventListener('click', () => {
+        preview.forEach(item => {
+          addRecord(item.day, item.product, item.quantity);
+        });
+        previewEl.classList.add('hidden');
+        document.getElementById('quickInput').value = '';
         renderDailyList();
         renderMonthlyStats();
-        document.getElementById('quickInput').value = '';
-        alert(`添加成功！共添加 ${addedCount} 条记录`);
-      } else {
-        alert('识别失败，请手动添加');
-        openAddModal(String(currentDate.getDate()).padStart(2, '0'));
-      }
-    });
+        alert('添加成功！共 ' + preview.length + ' 条记录');
+      });
+      
+      document.getElementById('quickCancel').addEventListener('click', () => {
+        previewEl.classList.add('hidden');
+      });
+    }
 
     document.getElementById('newProduct').addEventListener('focus', () => {
       showProductDropdown();
