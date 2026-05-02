@@ -261,6 +261,7 @@
             isLoadingFromCloud = true;
             records = data.record.records || {};
             products = data.record.products || {};
+            cleanDirtyData();
             localStorage.setItem('piecework_records', JSON.stringify(records));
             localStorage.setItem('piecework_products', JSON.stringify(products));
             console.log('云端数据加载成功:', Object.keys(records).length + ' 个月的数据');
@@ -333,11 +334,31 @@
       });
     }
 
+    // 清理脏数据
+    function cleanDirtyData() {
+      for (const monthKey in records) {
+        const monthData = records[monthKey];
+        for (const day in monthData) {
+          const dayNum = parseInt(day);
+          if (dayNum < 1 || dayNum > 31) {
+            delete monthData[day];
+            console.log('Cleaned invalid day:', day);
+          } else if (!monthData[day] || !Array.isArray(monthData[day])) {
+            delete monthData[day];
+            console.log('Cleaned invalid data for day:', day);
+          }
+        }
+      }
+    }
+    
     // 加载本地数据
     function loadData() {
       const savedRecords = localStorage.getItem('piecework_records');
       const savedProducts = localStorage.getItem('piecework_products');
-      if (savedRecords) records = JSON.parse(savedRecords);
+      if (savedRecords) {
+        records = JSON.parse(savedRecords);
+        cleanDirtyData();
+      }
       if (savedProducts) {
         products = JSON.parse(savedProducts);
       }
@@ -661,6 +682,13 @@
     // 添加记录
     function addRecord(date, product, quantity) {
       const [year, month, day] = date.split('-');
+      const dayNum = parseInt(day);
+      
+      if (dayNum < 1 || dayNum > 31) {
+        console.error('Invalid day:', day);
+        return;
+      }
+      
       const monthKey = `${year}-${month}`;
       
       if (!records[monthKey]) records[monthKey] = {};
@@ -779,44 +807,30 @@
       
       parts.forEach((part, index) => {
         const cleaned = part.trim().replace(/^[‑\-—]+/, '');
-        
+        const result = parseQuickInput(cleaned);
         let day = lastDay;
         let product = '';
         let quantity = 0;
         
-        let hasDate = false;
-        
-        const dayMatch1 = cleaned.match(/(\d{1,2})月(\d{1,2})[号日]?/);
-        if (dayMatch1) {
-          day = String(parseInt(dayMatch1[2])).padStart(2, '0');
-          hasDate = true;
+        if (result) {
+          day = result.day;
+          product = result.product;
+          quantity = result.quantity;
         } else {
-          const dayMatch2 = cleaned.match(/(\d{1,2})[号日]/);
-          if (dayMatch2) {
-            day = String(parseInt(dayMatch2[1])).padStart(2, '0');
-            hasDate = true;
+          const qtyMatch = cleaned.match(/(\d+)\s*[个片只件张]/);
+          if (qtyMatch) {
+            quantity = parseInt(qtyMatch[1]);
+            product = cleaned.replace(qtyMatch[0], '').trim();
           }
         }
         
-        const qtyMatch = cleaned.match(/(\d+)\s*[个片只件张]/);
-        if (qtyMatch) {
-          quantity = parseInt(qtyMatch[1]);
-        }
-        
-        let productStr = cleaned;
-        if (hasDate) {
-          productStr = productStr.replace(/\d{1,2}月\d{1,2}[号日]?/, '').replace(/\d{1,2}[号日]/, '');
-        }
-        if (qtyMatch) {
-          productStr = productStr.replace(qtyMatch[0], '');
-        }
-        
-        product = productStr.trim();
-        
         if (product && quantity > 0) {
-          addRecord(`${year}-${month}-${day}`, product, quantity);
-          lastDay = day;
-          addedCount++;
+          const dayNum = parseInt(day);
+          if (dayNum >= 1 && dayNum <= 31) {
+            addRecord(`${year}-${month}-${day}`, product, quantity);
+            lastDay = day;
+            addedCount++;
+          }
         }
       });
       
