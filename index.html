@@ -710,23 +710,46 @@
       let addedCount = 0;
       let lastDay = String(currentDate.getDate()).padStart(2, '0');
       
-      parts.forEach(part => {
+      parts.forEach((part, index) => {
         const cleaned = part.trim().replace(/^[‑\-—]+/, '');
-        const result = parseQuickInput(cleaned);
-        if (result) {
-          lastDay = result.day;
-          addRecord(`${year}-${month}-${result.day}`, result.product, result.quantity);
-          addedCount++;
+        
+        let day = lastDay;
+        let product = '';
+        let quantity = 0;
+        
+        let hasDate = false;
+        
+        const dayMatch1 = cleaned.match(/(\d{1,2})月(\d{1,2})[号日]?/);
+        if (dayMatch1) {
+          day = String(parseInt(dayMatch1[2])).padStart(2, '0');
+          hasDate = true;
         } else {
-          const qtyMatch = cleaned.match(/(\d+)\s*[个片只件张]/);
-          if (qtyMatch) {
-            const qty = parseInt(qtyMatch[1]);
-            const product = cleaned.replace(/(\d+)\s*[个片只件张]/, '').trim();
-            if (product) {
-              addRecord(`${year}-${month}-${lastDay}`, product, qty);
-              addedCount++;
-            }
+          const dayMatch2 = cleaned.match(/(\d{1,2})[号日]/);
+          if (dayMatch2) {
+            day = String(parseInt(dayMatch2[1])).padStart(2, '0');
+            hasDate = true;
           }
+        }
+        
+        const qtyMatch = cleaned.match(/(\d+)\s*[个片只件张]/);
+        if (qtyMatch) {
+          quantity = parseInt(qtyMatch[1]);
+        }
+        
+        let productStr = cleaned;
+        if (hasDate) {
+          productStr = productStr.replace(/\d{1,2}月\d{1,2}[号日]?/, '').replace(/\d{1,2}[号日]/, '');
+        }
+        if (qtyMatch) {
+          productStr = productStr.replace(qtyMatch[0], '');
+        }
+        
+        product = productStr.trim();
+        
+        if (product && quantity > 0) {
+          addRecord(`${year}-${month}-${day}`, product, quantity);
+          lastDay = day;
+          addedCount++;
         }
       });
       
