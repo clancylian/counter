@@ -824,7 +824,7 @@
           const qtyMatch = cleaned.match(/(\d+)\s*[个片只件张]/);
           if (qtyMatch) {
             quantity = parseInt(qtyMatch[1]);
-            product = cleaned.replace(qtyMatch[0], '').trim();
+            product = cleaned.replace(qtyMatch[0], '').trim().replace(/[\n\r]/g, '');
           }
         }
         
