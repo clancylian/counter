@@ -56,7 +56,8 @@
       <h3 class="font-semibold mb-3">产品单价设置</h3>
       <div class="space-y-2 max-h-40 overflow-y-auto scrollbar-hide" id="priceList"></div>
       <div class="flex gap-2 mt-3">
-        <input type="text" id="newProduct" placeholder="产品型号" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+        <input type="text" id="newProduct" placeholder="产品型号" list="productSuggestions" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+        <datalist id="productSuggestions"></datalist>
         <input type="number" id="newPrice" placeholder="单价" class="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
         <button id="addProduct" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">添加</button>
       </div>
@@ -456,6 +457,34 @@
       });
       document.getElementById('priceList').innerHTML = html;
       bindProductEvents();
+      updateProductSuggestions();
+    }
+    
+    function updateProductSuggestions() {
+      const suggestions = new Set();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const monthKey = `${currentYear}-${currentMonth}`;
+      
+      if (records[monthKey]) {
+        Object.values(records[monthKey]).forEach(dayRecords => {
+          dayRecords.forEach(record => {
+            suggestions.add(record.product);
+          });
+        });
+      }
+      
+      Object.keys(products).forEach(product => {
+        suggestions.add(product);
+      });
+      
+      const datalist = document.getElementById('productSuggestions');
+      datalist.innerHTML = '';
+      suggestions.forEach(product => {
+        const option = document.createElement('option');
+        option.value = product;
+        datalist.appendChild(option);
+      });
     }
 
     // 绑定产品事件
