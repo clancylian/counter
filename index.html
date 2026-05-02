@@ -266,6 +266,7 @@
             localStorage.setItem('piecework_products', JSON.stringify(products));
             console.log('云端数据加载成功:', Object.keys(records).length + ' 个月的数据');
             document.getElementById('lastLoadTime').textContent = formatTime(new Date());
+            await syncToCloud();
             return true;
           } else {
             console.log('云端数据为空');
