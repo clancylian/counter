@@ -670,12 +670,35 @@
     function populateProductSelect() {
       const select = document.getElementById('modalProduct');
       select.innerHTML = '<option value="">选择产品</option>';
-      Object.keys(products).forEach(product => {
-        const option = document.createElement('option');
-        option.value = product;
-        option.textContent = product;
-        select.appendChild(option);
+      
+      const seen = new Set();
+      
+      // 从所有历史记录中获取产品型号
+      Object.values(records).forEach(monthData => {
+        Object.values(monthData).forEach(dayRecords => {
+          dayRecords.forEach(record => {
+            if (!seen.has(record.product)) {
+              seen.add(record.product);
+              const option = document.createElement('option');
+              option.value = record.product;
+              option.textContent = record.product;
+              select.appendChild(option);
+            }
+          });
+        });
       });
+      
+      // 添加已设置单价的产品（可能还没有记录）
+      Object.keys(products).forEach(product => {
+        if (!seen.has(product)) {
+          seen.add(product);
+          const option = document.createElement('option');
+          option.value = product;
+          option.textContent = product;
+          select.appendChild(option);
+        }
+      });
+      
       const otherOption = document.createElement('option');
       otherOption.value = '__other__';
       otherOption.textContent = '其他型号';
