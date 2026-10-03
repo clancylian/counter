@@ -181,9 +181,177 @@
     let editingDay = '';
     let isLoadingFromCloud = false;
 
+    // ==================== 价格表模板 ====================
+    // 想改价格表，只改这里就行
+    const PRICE_TEMPLATE = {
+      // 侧网 / 背网 尺寸档位（补 gaps 延续上一档价格）
+      // 侧网和背网共用低档位，高档位 onlyBack 只对背网生效
+      // 侧网 ≥561 无价格（价格表没写），背网全覆盖
+      net: [
+        { min: 0, max: 479, price: 0.05 },
+        { min: 480, max: 560, price: 0.055 },
+        { min: 561, max: 579, price: 0.055, onlyBack: true },
+        { min: 580, max: 610, price: 0.06, onlyBack: true },
+        { min: 611, max: 619, price: 0.06, onlyBack: true },
+        { min: 620, max: 650, price: 0.07, onlyBack: true },
+        { min: 651, max: 679, price: 0.07, onlyBack: true },
+        { min: 680, max: 690, price: 0.08, onlyBack: true },
+        { min: 691, max: 749, price: 0.08, onlyBack: true },
+        { min: 750, max: 750, price: 0.1, onlyBack: true },
+        { min: 760, max: 840, price: 0.13, onlyBack: true },
+      ],
+      // 底网规格映射（精确匹配宽×高，按价格表写）
+      bottom: [
+        { w: 430, h: 430, method: '两边', price: 0.06 },
+        { w: 500, h: 380, method: '两边', price: 0.07 },
+        { w: 550, h: 390, method: '两边', price: 0.075 },
+        { w: 546, h: 400, method: '两边', price: 0.075 },
+        { w: 580, h: 390, method: '两边', price: 0.08 },
+        { w: 570, h: 430, method: '四边', price: 0.13 },
+        { w: 600, h: 380, method: '两边', price: 0.08 },
+        { w: 610, h: 390, method: '两边', price: 0.08 },
+        { w: 546, h: 430, method: '两边', price: 0.08 },
+        { w: 546, h: 430, method: '四边', price: 0.13 },
+        { w: 646, h: 400, method: '两边', price: 0.09 },
+        { w: 646, h: 400, method: '四边', price: 0.14 },
+        { w: 646, h: 430, method: '两边', price: 0.09 },
+        { w: 646, h: 430, method: '四边', price: 0.14 },
+        { w: 650, h: 430, method: '两边', price: 0.09 },
+        { w: 650, h: 430, method: '四边', price: 0.14 },
+        { w: 670, h: 430, method: '四边', price: 0.15 },
+        { w: 680, h: 430, method: '两边', price: 0.095 },
+        { w: 680, h: 430, method: '四边', price: 0.145 },
+        { w: 750, h: 390, method: '两边', price: 0.1 },
+        { w: 750, h: 390, method: '四边', price: 0.15 },
+        { w: 760, h: 550, method: '四边', price: 0.22 },
+        { w: 840, h: 500, method: '四边', price: 0.22 },
+        { w: 1066, h: 430, method: '四边', price: 0.3 },
+        { w: 1200, h: 550, method: '四边', price: 0.36 },
+      ]
+    };
+
+    // 从产品名提取所有数字（尺寸候选）
+    function extractSizeNums(name) {
+      return (name.match(/\d+/g) || []).map(Number);
+    }
+
+    // 判断产品类型
+    function getProductCategory(name) {
+      if (name.includes('底网')) return 'bottom';
+      if (name.includes('侧网')) return 'side';
+      if (name.includes('背网')) return 'back';
+      return 'other';
+    }
+
+    // 判断修法：两边 or 四边
+    function getRepairMethod(name) {
+      if (name.includes('四边') || name.includes('四方')) return '四边';
+      if (name.includes('两边') || name.includes('两边修')) return '两边';
+      return null;
+    }
+
+    // 确定用于定价的尺寸：2个数取第一个，3个及以上取中间
+    function getPricingSize(name) {
+      const nums = extractSizeNums(name);
+      if (nums.length === 0) return null;
+      if (nums.length === 2) return nums[0];
+      return nums[1]; // 3个及以上取中间
+    }
+
+    // 自动计算产品建议单价（基于 PRICE_TEMPLATE）
+    function calcAutoPrice(name) {
+      const category = getProductCategory(name);
+
+      if (category === 'side' || category === 'back') {
+        const size = getPricingSize(name);
+        if (size === null) return null;
+        for (const tier of PRICE_TEMPLATE.net) {
+          if (size >= tier.min && size <= tier.max) {
+            if (tier.onlyBack && category === 'side') return null;
+            return tier.price;
+          }
+        }
+        return null;
+      }
+
+      if (category === 'bottom') {
+        const nums = extractSizeNums(name);
+        const method = getRepairMethod(name);
+        if (nums.length < 2 || !method) return null;
+        const w = nums[0], h = nums[1];
+        for (const spec of PRICE_TEMPLATE.bottom) {
+          if (spec.method === method) {
+            const a = Math.min(spec.w, spec.h), b = Math.max(spec.w, spec.h);
+            const na = Math.min(w, h), nb = Math.max(w, h);
+            if (a === na && b === nb) return spec.price;
+          }
+        }
+        return null;
+      }
+
+      return null;
+    }
+
+    // 对单价为 0 的产品，尝试用模板自动填充
+    function applyAutoPrices() {
+      let filled = 0;
+      for (const key of Object.keys(products)) {
+        if (!products[key]) {
+          const suggested = calcAutoPrice(key);
+          if (suggested !== null) {
+            products[key] = suggested;
+            filled++;
+          }
+        }
+      }
+      if (filled > 0) {
+        console.log(`价格表自动填充了 ${filled} 个产品的单价`);
+      }
+      return filled;
+    }
+
     // 格式化价格，去掉末尾的0
     function formatPrice(num) {
       return parseFloat(num.toFixed(4));
+    }
+
+    // 规范化产品名称（用于比较，不直接作为显示）
+    // 处理：首尾空格、全角半角、多个连续空格、大小写
+    function normalizeProductName(name) {
+      if (!name) return '';
+      return name
+        .trim()
+        .normalize('NFKC')
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+    }
+
+    // 规范化产品名称用于存储（保留大小写，但清理空白和全半角）
+    function normalizeForStorage(name) {
+      if (!name) return '';
+      return name
+        .trim()
+        .normalize('NFKC')
+        .replace(/\s+/g, ' ');
+    }
+
+    // 在 products 中查找匹配的 key（不区分大小写、全半角、空白）
+    function findProductKey(name) {
+      const normalized = normalizeProductName(name);
+      if (!normalized) return null;
+      for (const key of Object.keys(products)) {
+        if (normalizeProductName(key) === normalized) {
+          return key;
+        }
+      }
+      return null;
+    }
+
+    // 获取产品单价（带规范化匹配）
+    function getProductPrice(name) {
+      const key = findProductKey(name);
+      if (key) return products[key];
+      return 0;
     }
 
     // 带重试的 fetch
@@ -263,6 +431,8 @@
             records = data.record.records || {};
             products = data.record.products || {};
             cleanDirtyData();
+            mergeDuplicateProducts();
+            applyAutoPrices();
             localStorage.setItem('piecework_records', JSON.stringify(records));
             localStorage.setItem('piecework_products', JSON.stringify(products));
             console.log('云端数据加载成功:', Object.keys(records).length + ' 个月的数据');
@@ -353,6 +523,48 @@
         }
       }
     }
+
+    // 合并重复的产品单价（同一产品因大小写/全半角/空白差异产生多个条目）
+    function mergeDuplicateProducts() {
+      const canonical = {}; // normalized name -> canonical key
+      const toDelete = [];
+
+      Object.keys(products).forEach(key => {
+        const normalized = normalizeProductName(key);
+        if (!normalized) {
+          toDelete.push(key);
+          return;
+        }
+        if (canonical[normalized]) {
+          // 已存在同名产品：保留单价非零的那个，否则保留先出现的
+          const existingKey = canonical[normalized];
+          if (!products[existingKey] && products[key]) {
+            products[existingKey] = products[key];
+          }
+          toDelete.push(key);
+        } else {
+          canonical[normalized] = key;
+        }
+      });
+
+      toDelete.forEach(key => delete products[key]);
+
+      // 将历史记录中的产品名称统一为规范名称
+      for (const monthKey in records) {
+        const monthData = records[monthKey];
+        for (const day in monthData) {
+          const dayRecords = monthData[day];
+          if (Array.isArray(dayRecords)) {
+            dayRecords.forEach(record => {
+              const canonicalKey = findProductKey(record.product);
+              if (canonicalKey && canonicalKey !== record.product) {
+                record.product = canonicalKey;
+              }
+            });
+          }
+        }
+      }
+    }
     
     // 加载本地数据
     function loadData() {
@@ -365,6 +577,8 @@
       if (savedProducts) {
         products = JSON.parse(savedProducts);
       }
+      mergeDuplicateProducts();
+      applyAutoPrices();
     }
 
     // 保存数据（同时保存到本地和云端）
@@ -404,7 +618,7 @@
       for (let i = 1; i <= days; i++) {
         const day = String(i).padStart(2, '0');
         const dayRecords = monthRecords[day] || [];
-        const dayTotal = dayRecords.reduce((sum, r) => sum + r.quantity * (products[r.product] || 0), 0);
+        const dayTotal = dayRecords.reduce((sum, r) => sum + r.quantity * getProductPrice(r.product), 0);
         
         html += `
           <div class="bg-gray-50 rounded-lg p-3">
@@ -419,7 +633,7 @@
           html += `<div class="text-gray-400 text-sm">暂无记录</div>`;
         } else {
           dayRecords.forEach((record, idx) => {
-            const price = products[record.product] || 0;
+            const price = getProductPrice(record.product);
             html += `
               <div class="flex justify-between items-center p-2 bg-white rounded text-sm" data-idx="${idx}">
                 <div>
@@ -468,15 +682,29 @@
     // 渲染价格列表
     function renderPriceList() {
       let html = '';
-      Object.keys(products).forEach(product => {
+      const productKeys = Object.keys(products).sort();
+      productKeys.forEach(product => {
         const encodedProduct = encodeURIComponent(product);
+        const currentPrice = products[product];
+        const suggested = calcAutoPrice(product);
+        let suggestionHtml = '';
+        if (suggested !== null) {
+          if (!currentPrice) {
+            suggestionHtml = `<span class="text-xs text-orange-500 ml-1">建议 ¥${formatPrice(suggested)}</span>`;
+          } else if (Math.abs(currentPrice - suggested) > 0.0001) {
+            suggestionHtml = `<span class="text-xs text-gray-400 ml-1">(模板 ¥${formatPrice(suggested)})</span>`;
+          }
+        } else if (!currentPrice) {
+          suggestionHtml = `<span class="text-xs text-red-400 ml-1">无法自动定价</span>`;
+        }
         html += `
           <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
             <span>${product}</span>
             <div class="flex items-center gap-2">
-              <span class="text-blue-600">¥${formatPrice(products[product])}</span>
-              <button class="edit-price-btn text-blue-400 hover:text-blue-600" data-product="${encodedProduct}">✏️</button>
-              <button class="delete-product-btn text-red-400 hover:text-red-600" data-product="${encodedProduct}">🗑️</button>
+              <span class="text-blue-600">¥${formatPrice(currentPrice)}</span>
+              ${suggestionHtml}
+              <button class="edit-price-btn text-blue-400 hover:text-blue-600" data-product="${encodedProduct}" title="编辑">✏️</button>
+              <button class="delete-product-btn text-red-400 hover:text-red-600" data-product="${encodedProduct}" title="删除">🗑️</button>
             </div>
           </div>
         `;
@@ -616,7 +844,7 @@
       let html = '';
       Object.keys(productTotals).forEach(product => {
         const quantity = productTotals[product];
-        const price = products[product] || 0;
+        const price = getProductPrice(product);
         const amount = quantity * price;
         totalSalary += amount;
         html += `
@@ -624,6 +852,7 @@
             <div>
               <span>${product}</span>
               <span class="text-gray-500 text-sm ml-2">${quantity}个</span>
+              <span class="text-gray-400 text-sm ml-2">@¥${formatPrice(price)}</span>
             </div>
             <span class="text-blue-600">¥${formatPrice(amount)}</span>
           </div>
@@ -715,12 +944,17 @@
         return;
       }
       
+      // 规范化产品名称：若已存在同名产品则使用规范名称，避免产生变体
+      const cleanedProduct = normalizeForStorage(product);
+      const canonicalKey = findProductKey(cleanedProduct);
+      const finalProduct = canonicalKey || cleanedProduct;
+      
       const monthKey = `${year}-${month}`;
       
       if (!records[monthKey]) records[monthKey] = {};
       if (!records[monthKey][day]) records[monthKey][day] = [];
       
-      records[monthKey][day].push({ product, quantity });
+      records[monthKey][day].push({ product: finalProduct, quantity });
       saveRecords();
     }
 
@@ -730,8 +964,13 @@
       const month = String(currentDate.getMonth() + 1).padStart(2, '0');
       const monthKey = `${year}-${month}`;
       
+      // 规范化产品名称
+      const cleanedProduct = normalizeForStorage(product);
+      const canonicalKey = findProductKey(cleanedProduct);
+      const finalProduct = canonicalKey || cleanedProduct;
+      
       if (records[monthKey]?.[day]) {
-        records[monthKey][day][idx] = { product, quantity };
+        records[monthKey][day][idx] = { product: finalProduct, quantity };
         saveRecords();
       }
     }
@@ -760,34 +999,64 @@
       }
     }
 
-    // 文本识别
-    function parseQuickInput(text) {
-      const patterns = [
-        /(\d{1,2})-(\d{1,2})[号日]?\s*(.+?)\s*(\d+)\s*[个片只件张]/i,
-        /(\d{1,2})月(\d{1,2})[号日]?\s*(.+?)\s*(\d+)\s*[个片只件张]/i,
-        /(\d{1,2})[号日]?\s*(.+?)\s*(\d+)\s*[个片只件张]/i,
-        /(\d{1,2})\s+(.+?)\s*(\d+)\s*[个片只件张]/i
-      ];
-      
-      for (const pattern of patterns) {
-        const match = text.match(pattern);
-        if (match) {
-          if (match.length === 5) {
-            return {
-              day: String(parseInt(match[2])).padStart(2, '0'),
-              product: match[3].trim(),
-              quantity: parseInt(match[4])
-            };
-          } else if (match.length === 4) {
-            return {
-              day: String(parseInt(match[1])).padStart(2, '0'),
-              product: match[2].trim(),
-              quantity: parseInt(match[3])
-            };
+    // 提取日期：返回 { day, month, matched } 或 null
+    function extractDate(text) {
+      let m;
+      m = text.match(/(\d{1,2})月\s*\d{1,2}[号日]?\s*[-－—~～]\s*(\d{1,2})[号日]?/);
+      if (m) return { month: parseInt(m[1]), day: parseInt(m[2]), matched: m[0] };
+      m = text.match(/(\d{1,2})月\s*(\d{1,2})[号日]?/);
+      if (m) return { month: parseInt(m[1]), day: parseInt(m[2]), matched: m[0] };
+      m = text.match(/(\d{1,2})\s*[-－—~～]\s*(\d{1,2})[号日]?/);
+      if (m) return { month: null, day: parseInt(m[2]), matched: m[0] };
+      m = text.match(/(\d{1,2})[号日]/);
+      if (m) return { month: null, day: parseInt(m[1]), matched: m[0] };
+      return null;
+    }
+
+    // 从一行文本中提取所有 产品+数量 对
+    function extractProducts(text) {
+      const results = [];
+      const segments = text.split(/[,，；;、]+/).map(s => s.trim()).filter(Boolean);
+      for (const seg of segments) {
+        const m = seg.match(/^(.+?)(\d+)\s*[个片只件张]$/i);
+        if (m) {
+          const product = m[1].trim();
+          const quantity = parseInt(m[2]);
+          if (product && quantity > 0) {
+            results.push({ product, quantity });
           }
         }
       }
-      return null;
+      return results;
+    }
+
+    // 文本识别：解析整段文本，返回 [{ month, day, product, quantity }]
+    function parseQuickInput(text, defaultMonth) {
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const records = [];
+      let pendingDate = null;
+
+      for (const line of lines) {
+        const date = extractDate(line);
+        const productText = date ? line.replace(date.matched, '').trim() : line;
+        const products = extractProducts(productText);
+
+        if (date && products.length > 0) {
+          const month = date.month || defaultMonth;
+          for (const p of products) {
+            records.push({ month, day: date.day, product: p.product, quantity: p.quantity });
+          }
+          pendingDate = date;
+        } else if (date && products.length === 0) {
+          pendingDate = date;
+        } else if (!date && products.length > 0 && pendingDate) {
+          const month = pendingDate.month || defaultMonth;
+          for (const p of products) {
+            records.push({ month, day: pendingDate.day, product: p.product, quantity: p.quantity });
+          }
+        }
+      }
+      return records;
     }
 
     // 事件监听
@@ -825,48 +1094,17 @@
       const input = document.getElementById('quickInput').value.trim();
       if (!input) return;
       
-      const parts = input.split(/[\n\r,，；;、]+/).filter(p => p.trim());
       const year = currentDate.getFullYear();
-      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const defaultMonth = currentDate.getMonth() + 1;
       const preview = [];
-      let lastDay = String(currentDate.getDate()).padStart(2, '0');
       
-      parts.forEach((part) => {
-        const cleaned = part.trim().replace(/^[‑\-—]+/, '');
-        const result = parseQuickInput(cleaned);
-        let day = lastDay;
-        let product = '';
-        let quantity = 0;
-        
-        if (result && result.quantity > 0 && result.product && result.product.length >= 2) {
-          const dayNum = parseInt(result.day);
-          if (dayNum >= 1 && dayNum <= 31) {
-            day = result.day;
-            product = result.product;
-            quantity = result.quantity;
-          } else {
-            day = lastDay;
-            const qtyMatch = cleaned.match(/(\d+)\s*[个片只件张]/);
-            if (qtyMatch) {
-              quantity = parseInt(qtyMatch[1]);
-              product = cleaned.replace(qtyMatch[0], '').trim();
-            }
-          }
-        } else {
-          day = lastDay;
-          const qtyMatch = cleaned.match(/(\d+)\s*[个片只件张]/);
-          if (qtyMatch) {
-            quantity = parseInt(qtyMatch[1]);
-            product = cleaned.replace(qtyMatch[0], '').trim();
-          }
-        }
-        
-        if (product && quantity > 0) {
-          const dayNum = parseInt(day);
-          if (dayNum >= 1 && dayNum <= 31) {
-            preview.push({ day: `${year}-${month}-${day}`, product, quantity });
-            lastDay = day;
-          }
+      const results = parseQuickInput(input, defaultMonth);
+      results.forEach(r => {
+        const dayNum = parseInt(r.day);
+        if (dayNum >= 1 && dayNum <= 31 && r.product && r.product.length >= 2 && r.quantity > 0) {
+          const month = String(r.month).padStart(2, '0');
+          const day = String(dayNum).padStart(2, '0');
+          preview.push({ day: `${year}-${month}-${day}`, product: r.product, quantity: r.quantity });
         }
       });
       
@@ -925,11 +1163,19 @@
     });
 
     document.getElementById('addProduct').addEventListener('click', () => {
-      const product = document.getElementById('newProduct').value.trim();
+      const rawProduct = document.getElementById('newProduct').value;
       const price = parseFloat(document.getElementById('newPrice').value);
-      
+      const product = normalizeForStorage(rawProduct);
+
       if (product && !isNaN(price)) {
-        products[product] = price;
+        // 检查是否已存在同名产品（不区分大小写、全半角、空白）
+        const existingKey = findProductKey(product);
+        if (existingKey) {
+          // 已存在则更新单价，避免产生重复条目
+          products[existingKey] = price;
+        } else {
+          products[product] = price;
+        }
         saveProducts();
         renderPriceList();
         renderDailyList();
